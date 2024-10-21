@@ -1,151 +1,120 @@
 import streamlit as st
+import yfinance as yf
 import pandas as pd
-import math
-from pathlib import Path
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
+import plotly.graph_objs as go
 
-# Set the title and favicon that appear in the Browser's tab bar.
-st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
-)
+# Placeholder for your model prediction function
+def predict_future(model, data, scaler, future_days):
+    # Dummy predictions for illustration (replace with your actual model prediction)
+    last_value = data[-1]
+    predictions = [last_value + i for i in range(1, future_days + 1)]
+    predictions = np.array(predictions).reshape(-1, 1)
+    return scaler.inverse_transform(predictions)
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
+# Placeholder model (replace with your actual model)
+model = None
 
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+def main():
+    st.set_page_config(page_title="Crypto Price Prediction", page_icon="📈", layout="wide")
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
+    st.title("📊 Cryptocurrency Price Prediction")
+    st.write("""
+        Welcome to the Crypto Price Prediction app! You can select a cryptocurrency and predict future prices using historical data.
+        This tool fetches real-time data from the web and predicts future prices for various cryptocurrencies.
+        Adjust the slider below to predict prices for the next few days.
+    """)
 
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
+    # Select cryptocurrency
+    st.sidebar.header('User Input Parameters')
+    currencies = ['BTC-USD', 'ETH-USD', 'LTC-USD', 'XRP-USD', 'DOGE-USD']
+    selected_currency = st.sidebar.selectbox('Select Cryptocurrency', currencies)
 
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
+    # Slider to select the number of future days to predict
+    future_days = st.sidebar.slider('Number of days to predict', min_value=1, max_value=30, value=7)
 
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
+    # Slider to view historical data range
+    history_days = st.sidebar.slider('Select history view range (days)', min_value=30, max_value=365, value=365)
 
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
+    # Fetch data from yfinance
+    data = yf.download(selected_currency, period=f'{history_days}d', interval='1d')
 
-    return gdp_df
+    if not data.empty:
+        # Display a preview of the data
+        st.subheader(f'Historical Data for {selected_currency}')
+        st.write(data.tail())
 
-gdp_df = get_gdp_data()
+        # Initialize and fit the scaler with the 'Close' price data
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        scaled_data = scaler.fit_transform(data['Close'].values.reshape(-1, 1))
 
-# -----------------------------------------------------------------------------
-# Draw the actual page
+        # Display historical data chart
+        st.subheader('Historical Price Data')
+        st.line_chart(data['Close'], use_container_width=True)
 
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
+        # Candlestick chart
+        st.subheader('Candlestick Chart')
+        candlestick = go.Figure(data=[go.Candlestick(x=data.index,
+                                                     open=data['Open'],
+                                                     high=data['High'],
+                                                     low=data['Low'],
+                                                     close=data['Close'])])
+        candlestick.update_layout(xaxis_rangeslider_visible=False)
+        st.plotly_chart(candlestick, use_container_width=True)
 
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
+        # Predict future prices
+        future_predictions = predict_future(model, scaled_data, scaler, future_days=future_days)
 
-# Add some spacing
-''
-''
+        # Display predicted prices
+        st.subheader('Predicted Future Prices')
+        future_dates = pd.date_range(start=data.index[-1], periods=future_days + 1)[1:]  # Avoid overlap with last actual date
+        predicted_df = pd.DataFrame(future_predictions, index=future_dates, columns=['Predicted Price'])
+        st.dataframe(predicted_df.style.format('${:.2f}'))
 
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
+        # Plot both actual and predicted prices
+        st.subheader('Actual vs Predicted Prices')
+        fig, ax = plt.subplots()
+        ax.plot(data.index, data['Close'], label='Actual Prices')
+        ax.plot(predicted_df.index, predicted_df['Predicted Price'], label='Predicted Prices', linestyle='--', color='orange')
+        ax.set_xlabel('Date')
+        ax.set_ylabel('Price (USD)')
+        ax.set_title(f'{selected_currency} Actual vs Predicted Prices')
+        ax.legend()
+        st.pyplot(fig)
 
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
+        # Determine if price is increasing or decreasing
+        last_actual_price = data['Close'][-1]
+        last_predicted_price = future_predictions[-1][0]
+        price_change = last_predicted_price - last_actual_price
+        price_change_percent = (price_change / last_actual_price) * 100
 
-countries = gdp_df['Country Code'].unique()
+        # Display predicted price in big, bold format with color based on price direction
+        price_direction = "increasing" if price_change > 0 else "decreasing"
+        price_color = "green" if price_change > 0 else "red"
+        st.subheader(f"🔮 Predicted Price for {selected_currency} in {future_days} Days:")
+        st.markdown(f"<h2 style='text-align: center; color: {price_color};'>${last_predicted_price:.2f} ({price_direction}, {price_change_percent:.2f}%)</h2>", unsafe_allow_html=True)
 
-if not len(countries):
-    st.warning("Select at least one country")
+        # Show additional features like volume and market cap
+        st.subheader('Additional Metrics')
+        st.write(f"**Volume:** {data['Volume'][-1]:,.0f}")
+        st.write(f"**Market Cap Estimate:** {(data['Close'][-1] * data['Volume'][-1]):,.0f} USD")
 
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
+        # Download option for data
+        csv = data.to_csv(index=True)
+        st.download_button(label="Download Historical Data as CSV", data=csv, file_name=f'{selected_currency}_historical_data.csv', mime='text/csv')
 
-''
-''
-''
+        # Footer with "Made by"
+        st.markdown("""
+            <hr>
+            <div style='text-align: center;'>
+                <strong>Made by Tushar Panwar</strong>
+            </div>
+        """, unsafe_allow_html=True)
 
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
+    else:
+        st.error("Failed to retrieve data. Please try again later.")
 
-st.header('GDP over time', divider='gray')
-
-''
-
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
-)
-
-''
-''
-
-
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
-
-    with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
-        else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
-
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
-        )
+if __name__ == "__main__":
+    main()
