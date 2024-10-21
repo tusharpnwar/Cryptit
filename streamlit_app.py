@@ -73,17 +73,6 @@ def main():
         predicted_df = pd.DataFrame(future_predictions, index=future_dates, columns=['Predicted Price'])
         st.dataframe(predicted_df.style.format('${:.2f}'))
 
-        # Plot both actual and predicted prices
-        st.subheader('Actual vs Predicted Prices')
-        fig, ax = plt.subplots()
-        ax.plot(data.index, data['Close'], label='Actual Prices')
-        ax.plot(predicted_df.index, predicted_df['Predicted Price'], label='Predicted Prices', linestyle='--', color='orange')
-        ax.set_xlabel('Date')
-        ax.set_ylabel('Price (USD)')
-        ax.set_title(f'{selected_currency} Actual vs Predicted Prices')
-        ax.legend()
-        st.pyplot(fig)
-
         # Determine if price is increasing or decreasing
         last_actual_price = data['Close'][-1]
         last_predicted_price = future_predictions[-1][0]
@@ -112,7 +101,7 @@ def main():
                 <strong>Made by Tushar Panwar</strong>
             </div>
         """, unsafe_allow_html=True)
-
+        
     else:
         st.error("Failed to retrieve data. Please try again later.")
 
