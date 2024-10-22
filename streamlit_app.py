@@ -1,100 +1,83 @@
 import streamlit as st
 import yfinance as yf
-from sklearn.preprocessing import MinMaxScaler
+import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import pandas as pd
-from datetime import datetime, timedelta
+from sklearn.preprocessing import MinMaxScaler
 
-# Function to fetch cryptocurrency data from Yahoo Finance
-def fetch_crypto_data(ticker, start_date, end_date):
-    data = yf.download(ticker, start=start_date, end=end_date)
-    return data
-
-# Function to predict future prices using a simple moving average model for demo purposes
-def predict_future(model, data, scaler, future_days=30):
-    # This is a placeholder prediction, normally you would use a trained model here
-    last_price = data[-1]
-    predictions = [last_price * (1 + np.random.normal(0, 0.02)) for _ in range(future_days)]
+# Placeholder for your model prediction function
+def predict_future(model, data, scaler, future_days):
+    # Dummy predictions for illustration (replace with your actual model prediction)
+    last_value = data[-1]
+    predictions = [last_value + i for i in range(1, future_days + 1)]
     predictions = np.array(predictions).reshape(-1, 1)
-    
     return scaler.inverse_transform(predictions)
 
-# Function to plot actual and predicted prices
-def plot_predictions(dates, actual_prices, predicted_prices):
-    # Create the figure and axes
-    fig, ax = plt.subplots(figsize=(10, 6))
+# Placeholder model (replace with your actual model)
+model = None
 
-    # Plot the actual prices
-    ax.plot(dates, actual_prices, label="Actual Prices", color="blue", marker="o")
-    
-    # Plot the predicted prices
-    ax.plot(dates, predicted_prices, label="Predicted Prices", color="green", marker="x")
-
-    # Set appropriate limits to avoid zooming in too much
-    ax.set_xlim([min(dates), max(dates)])
-    ax.set_ylim([min(min(actual_prices), min(predicted_prices)), max(max(actual_prices), max(predicted_prices))])
-
-    # Set title and labels
-    ax.set_title('Cryptocurrency Price Prediction')
-    ax.set_xlabel('Date')
-    ax.set_ylabel('Price')
-
-    # Add grid and legend
-    ax.grid(True)
-    ax.legend()
-
-    # Show the main plot
-    st.pyplot(fig)
-
-    # Different representations (Bar chart and scatter plot)
-    fig, ax2 = plt.subplots(figsize=(10, 6))
-    ax2.bar(dates[-len(predicted_prices):], predicted_prices, color='orange', label='Predicted Prices')
-    ax2.set_title('Predicted Prices - Bar Chart')
-    ax2.set_xlabel('Date')
-    ax2.set_ylabel('Price')
-    ax2.grid(True)
-    ax2.legend()
-    st.pyplot(fig)
-
-    fig, ax3 = plt.subplots(figsize=(10, 6))
-    ax3.scatter(dates[-len(predicted_prices):], predicted_prices, color='red', label='Predicted Prices')
-    ax3.set_title('Predicted Prices - Scatter Plot')
-    ax3.set_xlabel('Date')
-    ax3.set_ylabel('Price')
-    ax3.grid(True)
-    ax3.legend()
-    st.pyplot(fig)
-
-# Main function for the Streamlit app
 def main():
-    st.title("Cryptocurrency Price Prediction")
+    st.set_page_config(page_title="Crypto Price Prediction", page_icon="📈", layout="wide")
 
-    # User input for selecting cryptocurrency and prediction settings
-    crypto = st.selectbox('Select Cryptocurrency', ['BTC-USD', 'ETH-USD', 'LTC-USD'])
-    start_date = st.date_input('Start Date', datetime.now() - timedelta(days=365))
-    end_date = st.date_input('End Date', datetime.now())
-    future_days = st.slider('Days to Predict', min_value=1, max_value=60, value=30)
+    st.title("📊 Cryptocurrency Price Prediction Using LSTM")
+    st.write("""
+        Welcome to the Crypto Price Prediction app! You can select a cryptocurrency and predict future prices using historical data.
+        This tool fetches real-time data from the web and predicts future prices for various cryptocurrencies.
+        Adjust the slider below to predict prices for the next few days.
+    """)
 
-    if st.button('Fetch Data and Predict'):
-        # Fetch the cryptocurrency data
-        data = fetch_crypto_data(crypto, start_date, end_date)
-        st.write(f"Data for {crypto}:")
-        st.dataframe(data.tail())  # Show the last few rows of data
+    # Select cryptocurrency
+    st.sidebar.header('User Input Parameters')
+    currencies = ['BTC-USD', 'ETH-USD', 'LTC-USD', 'XRP-USD', 'DOGE-USD']
+    selected_currency = st.sidebar.selectbox('Select Cryptocurrency', currencies)
 
-        # Prepare the data for prediction
+    # Slider to select the number of future days to predict
+    future_days = st.sidebar.slider('Number of days to predict', min_value=1, max_value=30, value=7)
+
+    # Fetch data from yfinance
+    data = yf.download(selected_currency, period='1y', interval='1d')
+
+    if not data.empty:
+        # Display a preview of the data
+        st.subheader(f'Historical Data for {selected_currency}')
+        st.write(data.tail())
+
+        # Initialize and fit the scaler with the 'Close' price data
         scaler = MinMaxScaler(feature_range=(0, 1))
         scaled_data = scaler.fit_transform(data['Close'].values.reshape(-1, 1))
 
+        # Display historical data chart
+        st.subheader('Historical Price Data')
+        st.line_chart(data['Close'], use_container_width=True)
+
         # Predict future prices
-        model = None  # Replace with your trained model
-        future_predictions = predict_future(model, data['Close'].values.reshape(-1, 1), scaler, future_days=future_days)
+        future_predictions = predict_future(model, scaled_data, scaler, future_days=future_days)
 
-        # Prepare dates for the prediction graph
-        future_dates = pd.date_range(end_date + timedelta(days=1), periods=future_days).to_pydatetime().tolist()
+        # Display predicted prices
+        st.subheader('Predicted Future Prices')
+        future_dates = pd.date_range(start=data.index[-1], periods=future_days + 1)[1:]  # Avoid overlap with last actual date
+        predicted_df = pd.DataFrame(future_predictions, index=future_dates, columns=['Predicted Price'])
+        st.dataframe(predicted_df.style.format('${:.2f}'))
 
-        # Plot the results
-        plot_predictions(data.index.to_pydatetime(), data['Close'].values, future_predictions)
+        # Plot predicted prices
+        st.subheader(f"Price Prediction for the Next {future_days} Days")
+        plt.figure(figsize=(10, 5))
+        plt.plot(data.index[-100:], data['Close'][-100:], label='Historical Price', color='blue', linewidth=2)
+        plt.plot(predicted_df.index, predicted_df['Predicted Price'], label='Predicted Price', color='red', linestyle='--', linewidth=2)
+        plt.xlabel('Date')
+        plt.ylabel('Price (USD)')
+        plt.title(f'{selected_currency} Price Prediction for the Next {future_days} Days')
+        plt.legend()
+        plt.grid(True)
+        st.pyplot(plt)
 
-if __name__ == '__main__':
+        # Footer
+        st.markdown("""
+            **Note:** The predictions are generated using a basic model and are for illustration purposes only. 
+            The accuracy of the model may vary based on various factors including market conditions.
+        """, unsafe_allow_html=True)
+    else:
+        st.error("Failed to retrieve data. Please try again later.")
+
+if __name__ == "__main__":
     main()
