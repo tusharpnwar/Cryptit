@@ -19,7 +19,7 @@ To run this application locally, follow these steps:
 1. Clone this repository to your local machine:
 
    ```bash
-   git clone https://github.com/tusharpnwar/CryptoPhi-Crypto_Training_Bot/
+   git clone https://github.com/tusharpnwar/Cryptit/
    ```
 2. Install the required Python dependencies:
     ```bash
