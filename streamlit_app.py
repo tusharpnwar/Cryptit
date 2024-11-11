@@ -108,13 +108,7 @@ def main():
         st.markdown("""**Note:** The accuracy of the model may vary based on various factors including market conditions.
         """, unsafe_allow_html=True)
 
-        st.markdown("""**Contributors:** 
-            - Tushar Panwar [21BCE1074]
-            - Naman Singh [21BCE1075]
-            - Mekala Sujan [21BCE5590]
-            - Rounak Paul [21BCE1566]
-            Under the guidance of Prof. Prabhakaran R
-        """, unsafe_allow_html=True)
+      
 
     else:
         st.error("Failed to retrieve data. Please try again later.")
