@@ -26,7 +26,7 @@ def main():
     st.title("📊 Cryptocurrency Price Prediction")
     st.write("""
         Welcome to the Crypto Price Prediction app! You can select a cryptocurrency and predict future prices using historical data.
-        This tool fetches real-time data from the web and predicts future prices for various cryptocurrencies using ARIMA model.
+        This tool fetches real-time data from the web and predicts future prices for various cryptocurrencies using LSTM model.
     """)
 
     # Select cryptocurrency
@@ -105,6 +105,11 @@ def main():
 
         # Footer
         st.markdown("""---""")
+        st.markdown("""Made by TUSHAR PANWAR 21BCE1074
+PRITHVI RAJ DIXIT 21BCE5359
+GARVIT BANSAL 21BCE55773
+under the guidence of Dr.Punitha K
+        """, unsafe_allow_html=True)
         st.markdown("""**Note:** The accuracy of the model may vary based on various factors including market conditions.
         """, unsafe_allow_html=True)
 
